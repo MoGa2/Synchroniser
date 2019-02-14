@@ -8,41 +8,27 @@ define([""], function(){*/
 	 * @param {Boolean} launch_init_at_start - Short hand to finalize the init state.
 	 */
 	var Synchroniser = function ( acallbacks, aisOrdered, launch_init_at_start ) 
-	{
-		var unique_num_lock = 0;
-		var startReleaser;
-		var initReleased;
-		/** True when all locks are released */
-		var open = false;
-
-		/** Callbacks called when all locks are released */
-		var callbacks = acallbacks;
-
-		// ORDER REALTED VARIABLES------------------------
-		var isOrdered = aisOrdered || false;
-		var currentLockOrder = 0;
-		var maxOrder = 0;
-		var quededWaitingLocks = {};
-				
+	{		
 		/** Object Literal whose propertys are { {string} lock_id : {boolean} is_open } 
 		( PUBLIC FOR DEBUG PURPOSE ) */
 		this.locks = {};
+
+
 		/**
 		 * Add one lock to the Synchroniser
 		 * @param {string} lock - Lock's id ( DEBUG PURPOSE ).
 		 * @return {fn} releaser - Function who can release the lock.
-		 */
-
+		*/
 		this.addLock = function( lock )
 		{
 			lock = internal.getUniqueLock( lock );
-			lock.order = maxOrder++;
+			lock.order = internal.maxOrder++;
 					
 			this.locks[ lock ] = true;
 				
 			var releaser = ( on_lock_released ) => 
 			{	
-				if ( !isOrdered || currentLockOrder == lock.order )
+				if ( !internal.isOrdered || internal.currentLockOrder == lock.order )
 				{
 					on_lock_released && typeof ( on_lock_released ) == "function" && on_lock_released();
 					delete this.locks[ lock ];
@@ -55,7 +41,7 @@ define([""], function(){*/
 				}
 				else
 				{
-					quededWaitingLocks[ lock.order ] = lock;
+					internal.quededWaitingLocks[ lock.order ] = lock;
 				}
 			}
 			releaser.id = lock;
@@ -69,58 +55,73 @@ define([""], function(){*/
 
 		this.addCallback = function ( cb ) 
 		{
-			if ( open )
+			if ( internal.open )
 				cb();
 			else
-				callbacks.push( cb );
+				internal.callbacks.push( cb );
 		};
 
 		/**
-		 * Release the start lock by calling startReleaser 
+		 * Release the start lock by calling internal.startReleaser 
 		 * Called by the user or on init
 		 */
 
 		this.InitOver  = function()
 		{
-			if ( initReleased )
+			if ( internal.initReleased )
 				return;
 					
-			startReleaser();
-			initReleased = true;
+			internal.startReleaser();
+			internal.initReleased = true;
 		};
 
 		// KEEP BINDING IN NESTED CLOSURE ( releaser )
 		var internal = 
 		{
+			unique_num_lock : 0,
+			startReleaser : null,
+			initReleased : false,
+			/** True when all locks are released */
+			open : false,
+
+			/** Callbacks called when all locks are released */
+			callbacks : acallbacks,
+
+			// ORDER REALTED VARIABLES------------------------
+			isOrdered : aisOrdered || false,
+			currentLockOrder : 0,
+			maxOrder : 0,
+			quededWaitingLocks : {},
+
 			init : function()
 			{
-				startReleaser = this.addLock( "START" );
+				internal.startReleaser = this.addLock( "START" );
 				launch_init_at_start && this.InitOver();
 			},
 			/**
-			 * Recursive fn that check if locks are waiting to be released ( quededWaitingLocks)
+			 * Recursive fn that check if locks are waiting to be released ( internal.quededWaitingLocks)
 			 * Called when a lock is released.
 			 * 
 			 */
 			executeNextLockIfAlreadyReleased : () =>
 			{
-				currentLockOrder++
-				if ( Object.keys( quededWaitingLocks ).indexOf( currentLockOrder ) > -1 )
+				internal.currentLockOrder++
+				if ( Object.keys( internal.quededWaitingLocks ).indexOf( internal.currentLockOrder ) > -1 )
 				{
-					var on_lock_released = quededWaitingLocks[ currentLockOrder ];
+					var on_lock_released = internal.quededWaitingLocks[ internal.currentLockOrder ];
 					on_lock_released();
 					executeNextLockIfAlreadyReleased()
 				}
 			},
 				
 			/**
-			 * Recursive fn that check if locks are waiting to be released ( quededWaitingLocks)
+			 * Recursive fn that check if locks are waiting to be released ( internal.quededWaitingLocks)
 			 * Called when a lock is released.
 			 *( SHOULD BE PRIVATE ) 
 			 */
 			getUniqueNumLock : () =>
 			{
-				return unique_num_lock++;
+				return internal.unique_num_lock++;
 			},
 			
 			/**
@@ -135,19 +136,19 @@ define([""], function(){*/
 			},
 			
 			/**
-			 * Execute all callbacks and change the state to open
-			 * Called when all locks are open.
+			 * Execute all callbacks and change the state to internal.open
+			 * Called when all locks are internal.open.
 			 * ( SHOULD USE SYMBOL )
 			 */
 			onAllLockReleased : () => 
 			{
-				for ( var i = 0; i < callbacks.length ; i++ )
+				for ( var i = 0; i < internal.callbacks.length ; i++ )
 				{
-					var current_cb = callbacks[ i ];
+					var current_cb = internal.callbacks[ i ];
 					current_cb && current_cb();
 				}
 						
-				open = true;
+				internal.open = true;
 			}		
 		}	
 
